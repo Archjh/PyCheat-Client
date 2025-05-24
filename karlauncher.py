@@ -32,34 +32,38 @@ class Karlauncher(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout()
         central_widget.setLayout(layout)
-        
+    
         # Minecraft directory
         self.minecraft_dir_label = QLabel("Minecraft Directory:")
         self.minecraft_dir_input = QLineEdit()
         self.minecraft_dir_input.setPlaceholderText("Path to .minecraft folder")
         self.minecraft_dir_browse = QPushButton("Browse...")
         self.minecraft_dir_browse.clicked.connect(self.browse_minecraft_dir)
-        
+    
         dir_layout = QHBoxLayout()
         dir_layout.addWidget(self.minecraft_dir_input)
         dir_layout.addWidget(self.minecraft_dir_browse)
-        
+    
         # Java executable
         self.java_path_label = QLabel("Java Path:")
         self.java_path_input = QLineEdit()
         self.java_path_input.setPlaceholderText("Path to java executable")
         self.java_path_browse = QPushButton("Browse...")
         self.java_path_browse.clicked.connect(self.browse_java_path)
-        
+    
         java_layout = QHBoxLayout()
         java_layout.addWidget(self.java_path_input)
         java_layout.addWidget(self.java_path_browse)
-        
+    
+        # Create Install button first
+        self.install_button = QPushButton("Install Client")
+        self.install_button.clicked.connect(self.install_client)
+    
         # Launch button
         self.launch_button = QPushButton("Launch Minecraft 1.8.8")
         self.launch_button.clicked.connect(self.launch_minecraft)
-        
-        # Add widgets to main layout
+      
+        # Add widgets to main layout in correct order
         layout.addWidget(self.minecraft_dir_label)
         layout.addWidget(self.minecraft_dir_input)
         layout.addWidget(self.minecraft_dir_browse)
@@ -67,8 +71,9 @@ class Karlauncher(QMainWindow):
         layout.addWidget(self.java_path_input)
         layout.addWidget(self.java_path_browse)
         layout.addStretch()
+        layout.addWidget(self.install_button)  # Now this will work
         layout.addWidget(self.launch_button)
-    
+
     def browse_minecraft_dir(self):
         """Open a dialog to select the .minecraft directory"""
         dialog = QFileDialog()
@@ -208,6 +213,37 @@ cd {mc_dir}
             self.close()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to launch Minecraft: {e}")
+
+    # Add this new method to the Karlauncher class:     
+    def install_client(self):
+        """Install the client version to the Minecraft directory"""
+        mc_dir = self.minecraft_dir_input.text().strip()
+     
+        if not mc_dir:
+            QMessageBox.warning(self, "Error", "Please specify Minecraft directory first")
+            return
+    
+        # Check if client directory exists
+        client_dir = Path(__file__).parent / "ArchLibman"
+        if not client_dir.exists():
+            QMessageBox.critical(self, "Error", "Client files not found in ArchLibman directory")
+            return
+    
+        # Determine the command to run based on OS
+        current_os = platform.system()
+        script_path = Path(__file__).parent / "install_client.py"
+    
+        try:
+            if current_os == "Windows":
+                subprocess.run([sys.executable, str(script_path), mc_dir], check=True)
+            else:
+                subprocess.run([sys.executable, str(script_path), mc_dir], check=True)
+        
+            QMessageBox.information(self, "Success", "Client installed successfully!")
+        except subprocess.CalledProcessError as e:
+            QMessageBox.critical(self, "Error", f"Installation failed: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
 
 def main():
     app = QApplication(sys.argv)
