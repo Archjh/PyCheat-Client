@@ -526,9 +526,9 @@ class PyCheat(QMainWindow):
             return
     
         # Check if client directory exists
-        client_dir = Path(__file__).parent / "ArchLibman"
+        client_dir = Path(__file__).parent / "pycheat"
         if not client_dir.exists():
-            QMessageBox.critical(self, "Error", "Client files not found in ArchLibman directory")
+            QMessageBox.critical(self, "Error", "Client files not found in pycheat directory")
             return
     
         # Determine the command to run based on OS

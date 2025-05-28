@@ -1,6 +1,6 @@
-# Kar-Launcher
+# PyCheat-Client
 
-**Kar Launcher** is a dedicated launcher for a Minecraft hack client ArchLibman.
+**PyCheat Client** is a dedicated launcher for a Minecraft hack client pycheat.
 
 ## Dependencies
 
@@ -11,7 +11,7 @@
 
 Start the launcher GUI with:
 ```shell
-python ./karlauncher.py  # Or python3, python3.13 depending on your binary of Python 3.13 installation.
+python ./pycheat.py  # Or python3, python3.13 depending on your binary of Python 3.13 installation.
 ```
 
 Press the **Install** button to install the client.
