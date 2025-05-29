@@ -2,9 +2,15 @@ import os
 import time
 from tkinter import *
 from collections import deque
+from flask import Flask, request
+import threading
 
 class ArmorStatusDisplay:
     def __init__(self):
+        # 初始化线程锁和最新数据存储
+        self.latest_armor_data = ["empty,0"] * 4
+        self.data_lock = threading.Lock()
+        
         # Initialize the GUI window
         self.window = Tk()
         self.window.overrideredirect(True)
@@ -67,6 +73,9 @@ class ArmorStatusDisplay:
         # File path to monitor
         self.file_path = os.path.expanduser('~/.minecraft/armor_status.txt')
         
+        # 启动Flask服务器
+        self.start_flask_server()
+        
         # Start the update loop
         self.update_armor_status()
         
@@ -102,37 +111,42 @@ class ArmorStatusDisplay:
         return 'gray'  # Default
     
     def update_armor_status(self):
-        """Check the armor status file and update the display"""
-        try:
-            if os.path.exists(self.file_path):
-                with open(self.file_path, 'r') as f:
-                    lines = f.readlines()
+        """从内存中获取最新数据并更新显示"""
+        with self.data_lock:
+            lines = self.latest_armor_data
+        
+        # 处理数据与之前相同
+        for i, line in enumerate(reversed(lines[:4])):
+            parts = line.strip().split(',')
+            if len(parts) >= 2:
+                armor_type = parts[0].strip()
+                durability = parts[1].strip()
                 
-                # Process lines in reverse order to match Minecraft's display
-                for i, line in enumerate(reversed(lines[:4])):  # Only process first 4 lines in reverse
-                    parts = line.strip().split(',')
-                    if len(parts) >= 2:
-                        armor_type = parts[0].strip()
-                        durability = parts[1].strip()
-                        
-                        # Update color and text
-                        color = self.get_armor_color(armor_type)
-                        self.canvas.itemconfig(self.slot_rects[i], fill=color)
-                        
-                        # Format the display text consistently
-                        display_text = f"{armor_type}, {durability}%" if armor_type.lower() != "empty" else "None, 0%"
-                        self.canvas.itemconfig(self.slot_texts[i], text=display_text)
-            else:
-                # File doesn't exist, show empty status
-                for i in range(4):
-                    self.canvas.itemconfig(self.slot_rects[i], fill='gray')
-                    self.canvas.itemconfig(self.slot_texts[i], text='None, 0%')
+                color = self.get_armor_color(armor_type)
+                self.canvas.itemconfig(self.slot_rects[i], fill=color)
+                
+                display_text = f"{armor_type}, {durability}%" if armor_type.lower() != "empty" else "None, 0%"
+                self.canvas.itemconfig(self.slot_texts[i], text=display_text)
         
-        except Exception as e:
-            print(f"Error updating armor status: {e}")
-        
-        # Schedule next update
+        # 继续定期检查更新
         self.window.after(500, self.update_armor_status)
+        
+    def start_flask_server(self):
+        app = Flask(__name__)
+        
+        @app.route('/update_armor', methods=['POST'])
+        def update_armor():
+            data = request.json
+            with self.data_lock:
+                self.latest_armor_data = data.get('armor_data', ["empty,0"] * 4)
+            return "OK"
+        
+        # 在后台线程中运行Flask服务器
+        self.flask_thread = threading.Thread(
+            target=lambda: app.run(host='localhost', port=5000, debug=False, use_reloader=False)
+        )
+        self.flask_thread.daemon = True
+        self.flask_thread.start()
 
 # Start the application
 if __name__ == "__main__":
