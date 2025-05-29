@@ -13,8 +13,7 @@ You'll need to install the following environment:
 ```
 python3 install PyQt6 pyqtSignal
 ```
-
-![2025-05-29_15 24 02](https://github.com/user-attachments/assets/60823ed0-fd25-46b7-94a5-0b38a15a40ef)
+![4029](https://github.com/user-attachments/assets/9d09e6ff-1643-43c6-bade-6ac564a108a6)
 
 ### Note ⚠️
 
