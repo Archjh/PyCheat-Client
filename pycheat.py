@@ -3,6 +3,7 @@ import sys
 import json
 import platform
 import subprocess
+import shutil
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -518,34 +519,63 @@ class PyCheat(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to launch Minecraft: {e}")
 
     def install_client(self):
-        """Install the client version to the Minecraft directory"""
+        """同时安装版本文件和配置文件夹（跨平台支持）"""
         mc_dir = self.minecraft_dir_input.text().strip()
-     
         if not mc_dir:
-            QMessageBox.warning(self, "Error", "Please specify Minecraft directory first")
+            QMessageBox.warning(self, "Error", "请先指定 .minecraft 目录")
             return
-    
-        # Check if client directory exists
-        client_dir = Path(__file__).parent / "pycheat"
-        if not client_dir.exists():
-            QMessageBox.critical(self, "Error", "Client files not found in pycheat directory")
-            return
-    
-        # Determine the command to run based on OS
-        current_os = platform.system()
-        script_path = Path(__file__).parent / "install_client.py"
-    
+
+        # 定义源路径和目标路径
+        base_dir = Path(__file__).parent
+        install_paths = [
+            {
+                 "src": base_dir / "pycheat",
+                 "dst": Path(mc_dir) / "versions" / "pycheat",
+                 "name": "版本核心"
+            },
+            {
+                 "src": base_dir / "PyCheat-Client",
+                 "dst": Path(mc_dir) / "PyCheat-Client",
+                 "name": "配置文件"
+            }
+        ]
+
         try:
-            if current_os == "Windows":
-                subprocess.run([sys.executable, str(script_path), mc_dir], check=True)
-            else:
-                subprocess.run([sys.executable, str(script_path), mc_dir], check=True)
-        
-            QMessageBox.information(self, "Success", "Client installed successfully!")
-        except subprocess.CalledProcessError as e:
-            QMessageBox.critical(self, "Error", f"Installation failed: {str(e)}")
+            for item in install_paths:
+                if not item["src"].exists():
+                    raise FileNotFoundError(f"未找到{item['name']}文件夹: {item['src']}")
+
+                # 删除已存在的目标目录
+                if item["dst"].exists():
+                    shutil.rmtree(item["dst"], ignore_errors=True)
+
+                # 复制文件夹（保留文件属性）
+                shutil.copytree(item["src"], item["dst"], copy_function=shutil.copy2)
+
+                # Linux/macOS 权限修复
+                if platform.system() != "Windows":
+                    os.chmod(item["dst"], 0o755)
+                    for root, _, files in os.walk(item["dst"]):
+                        for file in files:
+                            os.chmod(os.path.join(root, file), 0o644)
+
+            QMessageBox.information(
+                self,
+                "安装成功",
+                f"文件已安装到:\n"
+                f"• 版本核心: {install_paths[0]['dst']}\n"
+                f"• 配置文件: {install_paths[1]['dst']}"
+            )
+
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "安装失败",
+                f"错误: {str(e)}\n"
+                f"请检查:\n"
+                f"1. 是否缺少 pycheat 或 PyCheat-Client 文件夹\n"
+                f"2. 对 .minecraft 目录是否有写入权限"
+            )
     
     def closeEvent(self, event):
         """Handle window close event - stop all modules"""
