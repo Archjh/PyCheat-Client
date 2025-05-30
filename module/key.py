@@ -3,6 +3,7 @@ import time
 import threading
 from tkinter import *
 from collections import deque
+import os
 
 # 使用双端队列存储点击时间戳，限制长度避免内存泄漏
 lclicks = deque(maxlen=100)  # 存储左键点击时间戳
@@ -103,9 +104,18 @@ mouse_listener.start()
 # 创建GUI窗口
 window = Tk()
 window.overrideredirect(True)
-window.config(bg='#114514')
+window.config(bg='#000000')
 window.attributes('-topmost','true')
-window.attributes('-alpha',0.90)
+window.attributes('-alpha',0.50)
+width = 210
+height = 280
+
+
+# Linux 下禁用窗口交互（防止鼠标卡顿）
+if os.name == 'posix':
+    window.wm_attributes('-type', 'dock')  # 让窗口不获取焦点（部分WM支持）
+    window.wm_attributes('-alpha', 0.9)    # 调整透明度（部分WM支持）
+
 width = 210
 height = 280
 
