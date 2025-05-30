@@ -113,11 +113,11 @@ height = 280
 screen_width = window.winfo_screenwidth()
 screen_height = window.winfo_screenheight()
 
-# 计算窗口左下角的坐标
+# 计算窗口左侧中间的坐标
 x_pos = 0
-y_pos = screen_height - height
+y_pos = (screen_height - height) // 2  # 垂直居中
 
-# 设置窗口位置为左下角
+# 设置窗口位置为左侧中间
 window.geometry(f'{width}x{height}+{x_pos}+{y_pos}')
 
 canvas = Canvas(window, highlightthickness=0, bg='#114514')
