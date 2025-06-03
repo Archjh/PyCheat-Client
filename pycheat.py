@@ -8,7 +8,8 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QListWidget, QSlider, QListWidgetItem, QCheckBox, QFrame
+    QListWidget, QSlider, QListWidgetItem, QCheckBox, QFrame,
+    QScrollArea  # Add this import
 )
 from PyQt6.QtCore import QStandardPaths, Qt, QSize, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QIcon, QColor, QPainter, QPen, QBrush
@@ -107,55 +108,79 @@ def generate_launch_script(java_path: str, mc_dir: str):
 
 class ModuleManager:
     def __init__(self):
-        self.modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "module")
+        # Python模块目录
+        self.python_modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "module")
+        # 配置文件模块目录
+        self.config_modules_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "PyCheat-Client", "modules")
+        
         self.modules = {
+            # Python模块
             "armorr.py": "Armor Status",
-            "fps.py": "FPS Display",
+            "fps.py": "FPS Display", 
             "potion.py": "Potion Effects",
             "TargetHUD.py": "Target HUD",
-            "key.py": "Keystrokes"
+            "key.py": "Keystrokes",
+            
+            # 配置文件模块
+            "combat/AimAssist.cfg": "Aim Assist",
+            "combat/AutoClicker.cfg": "Auto Clicker",
+            "movement/FPS Display.cfg": "FPS Display",
+            "player/Refill.cfg": "Refill",
+            "player/Sprint.cfg": "Sprint",
+            "player/TargetInfoMod.cfg": "Target Info",
+            "render/FullBright.cfg": "FullBright",
+            "render/ModArmorHUD.cfg": "Armor HUD",
+            "render/ModPotionHUD.cfg": "Potion HUD",
+            "render/NoFireOverlay.cfg": "No Fire Overlay",
+            "render/NoHurtCam.cfg": "No Hurt Cam",
+            "render/NoUnderOverlay.cfg": "No Underwater Overlay"
         }
         self.running_processes = {}
+        self.state_file = os.path.join(get_data_dir(), "module_states.json")
         
-        # Create modules directory if it doesn't exist
-        os.makedirs(self.modules_dir, exist_ok=True)
+        # 创建目录（如果不存在）
+        os.makedirs(self.python_modules_dir, exist_ok=True)
+        os.makedirs(self.config_modules_dir, exist_ok=True)
         
-        # Move existing modules to the module directory
-        for module in self.modules:
-            src = os.path.join(os.path.dirname(os.path.abspath(__file__)), module)
-            if os.path.exists(src):
-                dest = os.path.join(self.modules_dir, module)
-                if not os.path.exists(dest):
-                    os.rename(src, dest)
-
     def get_module_display_name(self, module_file):
-        """获取模块的显示名称"""
+        """Get the display name for a module file"""
         return self.modules.get(module_file, module_file)
-    
+
     def get_module_state(self):
-        """Get the saved state of modules"""
-        config_path = os.path.join(ensure_data_dir(), "modules.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r") as f:
-                return json.load(f)
+        """Get the current state of all modules"""
+        try:
+            if os.path.exists(self.state_file):
+                with open(self.state_file, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        # Return default states (all False) if file doesn't exist or is invalid
         return {module: False for module in self.modules}
-    
-    def save_module_state(self, state):
-        """Save the state of modules"""
-        config_path = os.path.join(ensure_data_dir(), "modules.json")
-        with open(config_path, "w") as f:
-            json.dump(state, f)
-    
+
+    def save_module_state(self, states):
+        """Save the current state of all modules"""
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump(states, f)
+        except Exception as e:
+            print(f"Error saving module states: {e}")
+
+    def get_module_path(self, module_file):
+        """获取模块完整路径"""
+        if module_file.endswith('.py'):
+            return os.path.join(self.python_modules_dir, module_file)
+        else:
+            return os.path.join(self.config_modules_dir, module_file)
+
     def start_module(self, module_name):
-        """Start a module"""
+        """启动模块"""
         if module_name in self.running_processes:
             return
             
-        module_path = os.path.join(self.modules_dir, module_name)
+        module_path = self.get_module_path(module_name)
         if os.path.exists(module_path):
             try:
                 if platform.system() == "Windows":
-                    # On Windows, use pythonw.exe to avoid console windows
                     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
                     if not os.path.exists(pythonw):
                         pythonw = sys.executable
@@ -169,7 +194,7 @@ class ModuleManager:
                 print(f"Error starting module {module_name}: {e}")
                 return False
         return False
-    
+
     def stop_module(self, module_name):
         """Stop a running module"""
         if module_name in self.running_processes:
@@ -187,6 +212,31 @@ class ModuleManager:
         """Stop all running modules"""
         for module_name in list(self.running_processes.keys()):
             self.stop_module(module_name)
+             
+    def init_module_configs(self):
+        """Initialize default configurations for modules"""
+        default_configs = {
+            "AimAssist.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "AutoClicker.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "FPS Display.cfg": {"toggled": True, "key": 0, "anticheat": "vanilla"},
+            "Refill.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "Sprint.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "TargetInfoMod.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "FullBright.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "ModArmorHUD.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "ModPotionHUD.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "NoFireOverlay.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "NoHurtCam.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
+            "NoUnderOverlay.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"}
+        }
+        
+        for module, config in default_configs.items():
+            module_path = os.path.join(self.modules_dir, module)
+            if not os.path.exists(module_path):
+                with open(module_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+
+    # ... (keep rest of ModuleManager class the same)
 
 class PyCheat(QMainWindow):
     def __init__(self):
@@ -242,15 +292,88 @@ class PyCheat(QMainWindow):
         main_layout = QHBoxLayout()
         central_widget.setLayout(main_layout)
         
-        # Left panel for Minecraft settings (keep this the same as before)
-        # ... (existing left panel code)
+        # Left panel for Minecraft settings
+        settings_panel = QWidget()
+        settings_layout = QVBoxLayout()
+        settings_panel.setLayout(settings_layout)
         
-        # Right panel for module management
+        # Java path selection
+        java_path_layout = QHBoxLayout()
+        java_path_label = QLabel("Java Path:")
+        self.java_path_input = QLineEdit()
+        java_path_browse = QPushButton("Browse...")
+        java_path_browse.clicked.connect(self.browse_java_path)
+
+        java_path_layout.addWidget(java_path_label)
+        java_path_layout.addWidget(self.java_path_input)
+        java_path_layout.addWidget(java_path_browse)
+        settings_layout.addLayout(java_path_layout)
+        
+        # Minecraft directory selection
+        mc_dir_layout = QHBoxLayout()
+        mc_dir_label = QLabel(".minecraft Directory:")
+        self.minecraft_dir_input = QLineEdit()
+        mc_dir_browse = QPushButton("Browse...")
+        mc_dir_browse.clicked.connect(self.browse_minecraft_dir)
+
+        mc_dir_layout.addWidget(mc_dir_label)
+        mc_dir_layout.addWidget(self.minecraft_dir_input)
+        mc_dir_layout.addWidget(mc_dir_browse)
+        settings_layout.addLayout(mc_dir_layout)
+        
+        # Buttons at the bottom
+        button_layout = QHBoxLayout()
+        install_button = QPushButton("Install Client")
+        install_button.clicked.connect(self.install_client)
+        launch_button = QPushButton("Launch Minecraft")
+        launch_button.clicked.connect(self.launch_minecraft)
+
+        button_layout.addWidget(install_button)
+        button_layout.addWidget(launch_button)
+        settings_layout.addLayout(button_layout)
+
+        # ... (keep existing Java/Minecraft directory selection code)
+        
+        # Add some spacing
+        settings_layout.addStretch()
+    
+        # Right panel for module management with scroll area
         module_panel = QWidget()
         module_layout = QVBoxLayout()
         module_panel.setLayout(module_layout)
+    
+        # Create scroll area for modules
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #f5f5f7;
+                width: 8px;
+                margin: 0px 0px 0px 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #d1d1d6;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
         
-        # Add a header with a master switch
+        # Container widget for modules
+        modules_container = QWidget()
+        modules_container_layout = QVBoxLayout()
+        modules_container_layout.setContentsMargins(5, 5, 5, 5)
+        modules_container.setLayout(modules_container_layout)
+        
+        # Add header with master switch
         header = QWidget()
         header_layout = QHBoxLayout()
         header.setLayout(header_layout)
@@ -265,57 +388,17 @@ class PyCheat(QMainWindow):
         header_layout.addStretch()
         header_layout.addWidget(self.master_switch)
         
-        module_layout.addWidget(header)
+        modules_container_layout.addWidget(header)
+        modules_container_layout.addSpacing(10)
         
-        # Add a separator line
+        # Add separator line
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
-        module_layout.addWidget(separator)
-
-        # Left panel for Minecraft settings
-        settings_panel = QWidget()
-        settings_layout = QVBoxLayout()
-        settings_panel.setLayout(settings_layout)
-
-        # Java path selection
-        java_path_layout = QHBoxLayout()
-        java_path_label = QLabel("Java Path:")
-        self.java_path_input = QLineEdit()
-        java_path_browse = QPushButton("Browse...")
-        java_path_browse.clicked.connect(self.browse_java_path)
-
-        java_path_layout.addWidget(java_path_label)
-        java_path_layout.addWidget(self.java_path_input)
-        java_path_layout.addWidget(java_path_browse)
-        settings_layout.addLayout(java_path_layout)
-
-        # Minecraft directory selection
-        mc_dir_layout = QHBoxLayout()
-        mc_dir_label = QLabel(".minecraft Directory:")
-        self.minecraft_dir_input = QLineEdit()
-        mc_dir_browse = QPushButton("Browse...")
-        mc_dir_browse.clicked.connect(self.browse_minecraft_dir)
-
-        mc_dir_layout.addWidget(mc_dir_label)
-        mc_dir_layout.addWidget(self.minecraft_dir_input)
-        mc_dir_layout.addWidget(mc_dir_browse)
-        settings_layout.addLayout(mc_dir_layout)
-
-        # Buttons at the bottom
-        button_layout = QHBoxLayout()
-        install_button = QPushButton("Install Client")
-        install_button.clicked.connect(self.install_client)
-        launch_button = QPushButton("Launch Minecraft")
-        launch_button.clicked.connect(self.launch_minecraft)
-
-        button_layout.addWidget(install_button)
-        button_layout.addWidget(launch_button)
-        settings_layout.addLayout(button_layout)
-
-        # Add some spacing
-        settings_layout.addStretch()
+        modules_container_layout.addWidget(separator)
+        modules_container_layout.addSpacing(10)
         
+        # Add module list
         self.module_list = QListWidget()
         self.module_list.setStyleSheet("""
             QListWidget {
@@ -325,13 +408,14 @@ class PyCheat(QMainWindow):
             }
             QListWidget::item {
                 border-bottom: 1px solid #e5e5ea;
+                padding: 5px;
             }
             QListWidget::item:last {
                 border-bottom: none;
             }
         """)
         
-        # Populate module list with new switch style
+        # Populate module list
         module_states = self.module_manager.get_module_state()
         all_enabled = all(module_states.values())
         self.master_switch.state = all_enabled
@@ -354,11 +438,16 @@ class PyCheat(QMainWindow):
             self.module_list.setItemWidget(item, widget)
             item.setSizeHint(widget.sizeHint())
         
-        module_layout.addWidget(self.module_list)
+        modules_container_layout.addWidget(self.module_list)
+        modules_container_layout.addStretch()
+        
+        # Set up scroll area
+        scroll_area.setWidget(modules_container)
+        module_layout.addWidget(scroll_area)
         
         # Add panels to main layout
         main_layout.addWidget(settings_panel, stretch=1)
-        main_layout.addWidget(module_panel, stretch=1)
+        main_layout.addWidget(module_panel, stretch=2)  # Give more space to modules
 
     def toggle_all_modules(self, state):
         """Toggle all modules on/off"""
@@ -590,7 +679,7 @@ class ArrayListWindow(QWidget):
         self.setWindowTitle("Active Modules")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(200, 300)
+        self.setFixedSize(200, 700)  # Changed from 300 to 400
 
         # 设置窗口位置在屏幕右上角
         screen_geometry = QApplication.primaryScreen().geometry()
