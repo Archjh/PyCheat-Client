@@ -151,17 +151,23 @@ class ModuleManager:
         try:
             if os.path.exists(self.state_file):
                 with open(self.state_file, 'r') as f:
-                    return json.load(f)
+                    states = json.load(f)
+                    # Convert string values to boolean
+                    return {module: states[module] == "true" if isinstance(states[module], str) else states[module]
+                           for module in self.modules}
         except Exception:
             pass
         # Return default states (all False) if file doesn't exist or is invalid
         return {module: False for module in self.modules}
-
+    
     def save_module_state(self, states):
         """Save the current state of all modules"""
         try:
+            # Convert boolean values to "true"/"talse" strings
+            string_states = {module: "true" if state else "talse" 
+                            for module, state in states.items()}
             with open(self.state_file, 'w') as f:
-                json.dump(states, f)
+                json.dump(string_states, f)
         except Exception as e:
             print(f"Error saving module states: {e}")
 
@@ -176,10 +182,14 @@ class ModuleManager:
         """启动模块"""
         if module_name in self.running_processes:
             return
-            
+        
         module_path = self.get_module_path(module_name)
         if os.path.exists(module_path):
             try:
+                # 仅执行Python文件
+                if not module_name.endswith('.py'):
+                    return True  # 对于.cfg文件，直接返回成功而不执行
+                
                 if platform.system() == "Windows":
                     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
                     if not os.path.exists(pythonw):
@@ -187,7 +197,7 @@ class ModuleManager:
                     process = subprocess.Popen([pythonw, module_path], creationflags=subprocess.CREATE_NO_WINDOW)
                 else:
                     process = subprocess.Popen([sys.executable, module_path])
-                
+            
                 self.running_processes[module_name] = process
                 return True
             except Exception as e:
@@ -195,18 +205,16 @@ class ModuleManager:
                 return False
         return False
 
-    def stop_module(self, module_name):
-        """Stop a running module"""
-        if module_name in self.running_processes:
-            try:
-                self.running_processes[module_name].terminate()
-                self.running_processes[module_name].wait()
-                del self.running_processes[module_name]
-                return True
-            except Exception as e:
-                print(f"Error stopping module {module_name}: {e}")
-                return False
-        return False
+    def save_module_state(self, states):
+        """保存所有模块的当前状态"""
+        try:
+            # 将布尔值转换为合法的JSON "true"/"false"字符串
+            json_states = {module: "true" if state else "false" 
+                          for module, state in states.items()}
+            with open(self.state_file, 'w') as f:
+                json.dump(json_states, f)
+        except Exception as e:
+            print(f"保存模块状态时出错: {e}")
     
     def stop_all_modules(self):
         """Stop all running modules"""
@@ -214,29 +222,32 @@ class ModuleManager:
             self.stop_module(module_name)
              
     def init_module_configs(self):
-        """Initialize default configurations for modules"""
+        """初始化模块的默认配置"""
         default_configs = {
-            "AimAssist.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "AutoClicker.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "FPS Display.cfg": {"toggled": True, "key": 0, "anticheat": "vanilla"},
-            "Refill.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "Sprint.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "TargetInfoMod.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "FullBright.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "ModArmorHUD.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "ModPotionHUD.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "NoFireOverlay.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "NoHurtCam.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"},
-            "NoUnderOverlay.cfg": {"toggled": False, "key": 0, "anticheat": "vanilla"}
+            "combat/AimAssist.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "combat/AutoClicker.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "movement/FPS Display.cfg": {"toggled": "true", "key": 0, "anticheat": "vanilla"},
+            "player/Refill.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "player/Sprint.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "player/TargetInfoMod.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/FullBright.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/ModArmorHUD.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/ModPotionHUD.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/NoFireOverlay.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/NoHurtCam.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"},
+            "render/NoUnderOverlay.cfg": {"toggled": "false", "key": 0, "anticheat": "vanilla"}
         }
-        
+
+        # 确保所有目录存在
+        for module_path in default_configs.keys():
+            dir_path = os.path.dirname(os.path.join(self.config_modules_dir, module_path))
+            os.makedirs(dir_path, exist_ok=True)
+
         for module, config in default_configs.items():
-            module_path = os.path.join(self.modules_dir, module)
+            module_path = os.path.join(self.config_modules_dir, module)
             if not os.path.exists(module_path):
                 with open(module_path, 'w') as f:
                     json.dump(config, f, indent=4)
-
-    # ... (keep rest of ModuleManager class the same)
 
 class PyCheat(QMainWindow):
     def __init__(self):
@@ -469,6 +480,9 @@ class PyCheat(QMainWindow):
             self.module_manager.start_module(module_name)
         else:  # Off
             self.module_manager.stop_module(module_name)
+
+        # 更新ArrayList
+        self.array_list_window.update_list()
 
         # Save the new state
         module_states = self.module_manager.get_module_state()
