@@ -205,6 +205,17 @@ class ModuleManager:
                 return False
         return False
 
+    def stop_module(self, module_name):
+        """停止正在运行的模块"""
+        if module_name in self.running_processes:
+            process = self.running_processes[module_name]
+            try:
+                process.terminate()  # 尝试优雅终止
+                process.wait(timeout=2)  # 等待进程结束
+            except subprocess.TimeoutExpired:
+                process.kill()  # 强制终止
+            del self.running_processes[module_name]
+
     def save_module_state(self, states):
         """保存所有模块的当前状态"""
         try:
@@ -469,8 +480,8 @@ class PyCheat(QMainWindow):
 
             widget.toggle_state(state)
             self.on_module_toggle(module_name, state)
-        # 切换所有模块状态后更新ArrayList
-        self.array_list_window.update_list()
+            # 切换所有模块状态后更新ArrayList
+            self.array_list_window.update_list()
     
     # ... (keep all other existing methods the same)
 
