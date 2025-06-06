@@ -701,21 +701,29 @@ class ArrayListWindow(QWidget):
     def __init__(self, module_manager, parent=None):
         super().__init__(parent)
         self.module_manager = module_manager
+        
+        # 针对i3wm的特殊设置
         self.setWindowTitle("Active Modules")
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool |
+            Qt.WindowType.X11BypassWindowManagerHint  # 关键设置，绕过窗口管理器
+        )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(200, 700)  # Changed from 300 to 400
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setFixedSize(200, 400)
 
         # 设置窗口位置在屏幕右上角
         screen_geometry = QApplication.primaryScreen().geometry()
         self.move(screen_geometry.width() - 220, 50)
 
-        # 设置样式
+        # 设置样式 - 更透明的背景
         self.setStyleSheet("""
             QWidget {
-                background-color: rgba(30, 30, 30, 200);
-                border-radius: 10px;
-                border: 1px solid #555;
+                background-color: rgba(30, 30, 30, 180);
+                border-radius: 5px;
+                border: 1px solid #444;
             }
             QLabel {
                 color: white;
@@ -723,52 +731,122 @@ class ArrayListWindow(QWidget):
             }
         """)
 
+        # 主布局
         self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.layout.setContentsMargins(8, 8, 8, 8)
         self.setLayout(self.layout)
 
         # 标题
         self.title_label = QLabel("Active Modules")
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.title_label.setStyleSheet("""
+            font-weight: bold; 
+            font-size: 14px;
+            color: #ffffff;
+        """)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.title_label)
 
         # 分隔线
         self.separator = QFrame()
         self.separator.setFrameShape(QFrame.Shape.HLine)
-        self.separator.setStyleSheet("color: #555;")
+        self.separator.setStyleSheet("background-color: rgba(255, 255, 255, 30);")
         self.layout.addWidget(self.separator)
 
-        # 模块列表容器
+        # 可滚动的模块列表区域
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: rgba(50, 50, 50, 50);
+                width: 4px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(100, 100, 100, 100);
+                min-height: 20px;
+                border-radius: 2px;
+            }
+        """)
+
         self.modules_container = QWidget()
         self.modules_layout = QVBoxLayout()
-        self.modules_layout.setSpacing(5)
+        self.modules_layout.setSpacing(3)
+        self.modules_layout.setContentsMargins(0, 0, 5, 0)  # 右侧留出滚动条空间
         self.modules_container.setLayout(self.modules_layout)
-        self.layout.addWidget(self.modules_container)
+        self.scroll_area.setWidget(self.modules_container)
+        self.layout.addWidget(self.scroll_area)
 
         # 初始更新
         self.update_list()
 
+        # 确保窗口在i3wm中不会被管理
+        self.set_properties_for_i3()
+
+    def set_properties_for_i3(self):
+        """设置i3wm特定的窗口属性"""
+        try:
+            from Xlib import display, X
+            from Xlib.protocol import request
+            
+            d = display.Display()
+            root = d.screen().root
+            
+            # 获取窗口ID
+            win_id = self.winId()
+            if isinstance(win_id, int):
+                window = d.create_resource_object('window', win_id)
+                
+                # 设置窗口类型为_NET_WM_WINDOW_TYPE_UTILITY
+                atom = d.intern_atom('_NET_WM_WINDOW_TYPE_UTILITY')
+                window.change_property(d.intern_atom('_NET_WM_WINDOW_TYPE'),
+                                      d.intern_atom('ATOM'), 32,
+                                      [atom], X.PropModeReplace)
+                
+                # 设置窗口为不可聚焦
+                window.change_property(d.intern_atom('_NET_WM_STATE'),
+                                      d.intern_atom('ATOM'), 32,
+                                      [d.intern_atom('_NET_WM_STATE_SKIP_TASKBAR'),
+                                       d.intern_atom('_NET_WM_STATE_SKIP_PAGER')],
+                                      X.PropModeReplace)
+                
+                d.flush()
+        except Exception as e:
+            print(f"无法设置i3wm窗口属性: {e}")
+
     def update_list(self):
         """更新显示的模块列表"""
-         # 清除现有模块显示
+        # 清除现有模块显示
         for i in reversed(range(self.modules_layout.count())):
-            item = self.modules_layout.itemAt(i)
-            if item is not None and item.widget() is not None:
-                item.widget().setParent(None)
+            widget = self.modules_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
 
         # 获取当前启用的模块
         module_states = self.module_manager.get_module_state()
         active_modules = [name for name, state in module_states.items() if state]
-
-        # 按模块名称排序
         active_modules.sort()
 
         # 添加每个启用的模块
         for module_file in active_modules:
             module_name = self.module_manager.get_module_display_name(module_file)
             label = QLabel(f"• {module_name}")
-            label.setStyleSheet("font-size: 12px;")
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    padding: 4px 6px;
+                    border-radius: 3px;
+                    color: #e0e0e0;
+                }
+                QLabel:hover {
+                    background-color: rgba(255, 255, 255, 20);
+                }
+            """)
             self.modules_layout.addWidget(label)
 
         # 如果没有启用的模块，显示提示
@@ -778,7 +856,6 @@ class ArrayListWindow(QWidget):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.modules_layout.addWidget(label)
 
-        # 添加伸缩空间
         self.modules_layout.addStretch()
 
 def main():
