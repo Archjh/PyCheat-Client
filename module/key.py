@@ -4,6 +4,7 @@ import threading
 from tkinter import *
 from collections import deque
 import os
+import sys
 
 # 使用双端队列存储点击时间戳，限制长度避免内存泄漏
 lclicks = deque(maxlen=100)  # 存储左键点击时间戳
@@ -105,19 +106,34 @@ mouse_listener.start()
 window = Tk()
 window.overrideredirect(True)
 window.config(bg='#000000')
-window.attributes('-topmost','true')
-window.attributes('-alpha',0.50)
+window.attributes('-topmost', True)
+window.attributes('-alpha', 0.50)
 width = 210
 height = 280
 
-
-# Linux 下禁用窗口交互（防止鼠标卡顿）
-if os.name == 'posix':
-    window.wm_attributes('-type', 'dock')  # 让窗口不获取焦点（部分WM支持）
-    window.wm_attributes('-alpha', 0.9)    # 调整透明度（部分WM支持）
-
-width = 210
-height = 280
+# X11特定设置
+if os.name == 'posix' and sys.platform != 'darwin':  # Linux/X11系统
+    try:
+        # 使用不同的方法设置窗口属性
+        window.wm_attributes('-type', 'splash')  # 更通用的窗口类型
+        window.wm_attributes('-alpha', 0.9)
+        
+        # 使用ewmh设置窗口属性
+        window.update_idletasks()
+        window.update()
+        
+        # 对于某些窗口管理器，可能需要设置_NET_WM_WINDOW_TYPE
+        if 'XDG_SESSION_TYPE' in os.environ and os.environ['XDG_SESSION_TYPE'] == 'x11':
+            try:
+                from ewmh import EWMH
+                ewmh = EWMH()
+                win_id = int(window.frame(), 16)
+                ewmh.setWmWindowType(win_id, '_NET_WM_WINDOW_TYPE_UTILITY')
+                ewmh.display.flush()
+            except ImportError:
+                pass
+    except Exception as e:
+        print(f"X11 specific settings error: {e}")
 
 # 获取屏幕宽度和高度
 screen_width = window.winfo_screenwidth()
