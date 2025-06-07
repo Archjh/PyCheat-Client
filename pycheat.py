@@ -859,6 +859,17 @@ class ArrayListWindow(QWidget):
         self.modules_layout.addStretch()
 
 def main():
+
+    # 添加xhost +local:命令执行
+    if platform.system() == "Linux":
+        try:
+            subprocess.run(["xhost", "+local:"], check=True)
+            print("Successfully executed 'xhost +local:'")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to execute 'xhost +local:': {e}")
+        except FileNotFoundError:
+            print("'xhost' command not found, skipping")
+    
     app = QApplication(sys.argv)
     launcher = PyCheat()
     launcher.show()
