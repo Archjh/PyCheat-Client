@@ -30,9 +30,9 @@ class TargetHUDDisplay:
         self.screen_width = self.window.winfo_screenwidth()
         self.screen_height = self.window.winfo_screenheight()
         
-        # Position in bottom right corner (with some margin)
-        x_pos = self.screen_width - self.width - 20
-        y_pos = self.screen_height - self.height - 20
+        # Position in middle-left of the screen
+        x_pos = int(self.screen_width * 0.25 - self.width / 2)  # 25% from left
+        y_pos = int(self.screen_height / 2 - self.height / 2)  # Centered vertically
         self.window.geometry(f'{self.width}x{self.height}+{x_pos}+{y_pos}')
         
         # Create canvas
